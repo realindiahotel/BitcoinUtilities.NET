@@ -190,7 +190,7 @@ namespace Bitcoin.BitcoinUtilities
             toHashForSeed = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length);
 
             //by making the iterations also random we are again making it hard to determin our seed by brute force
-            int iterations = seedStretchingIterations-(seedByteTakeDetermine.Next(0,(seedStretchingIterations/9)));
+            int iterations = seedStretchingIterations-(seedByteTakeDetermine.Next(0,(seedStretchingIterations/seedByteTakeDetermine.Next(9,100))));
 
             //here we use key stretching techniques to make it harder to replay the random seed values by forcing computational time up            
             byte[] seedMaterial = Rfc2898_pbkdf2_hmacsha512.PBKDF2(toHashForSeed, seedByteTakeDetermine.GenerateSeed(64),iterations);
