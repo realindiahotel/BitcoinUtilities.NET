@@ -137,66 +137,71 @@ namespace Bitcoin.BitcoinUtilities
         /// Safely get Crypto Random byte array at the size you desire
         /// </summary>
         /// <param name="size">Size of the crypto random byte array to build</param>
-        /// <param name="seedStretching">Optional parameter to specify how many SHA512 passes occur over our seed before we use it. Higher value is greater security but uses more computational power. If random byte generation is taking too long try specifying values lower than the default of 30000. You can set 0 to turn off stretching</param>
+        /// <param name="seedStretchingIterations">Optional parameter to specify how many SHA512 passes occur over our seed before we use it. Higher value is greater security but uses more computational power. If random byte generation is taking too long try specifying values lower than the default of 30000. You can set 0 to turn off stretching</param>
         /// <returns>A byte array of completely random bytes</returns>
-        public static byte[] GetRandomBytes(int size, int seedStretching=30000)
+        public static byte[] GetRandomBytes(int size, int seedStretchingIterations=30000)
         {
             //if some fool trys to set stretching to < 0 we protect them from themselves
-            if(seedStretching<0)
+            if(seedStretchingIterations<0)
             {
-                seedStretching = 0;
+                seedStretchingIterations = 0;
             }
 
             byte[] output = new byte[size];
 
-            //we create a SecureRandom based off SHA256 just to get a random int which will be used to determine what bytes to "take" from our built seed hash and then rehash those taken seed bytes.
+            //we create a SecureRandom based off SHA256 just to get a random int which will be used to determine what bytes to "take" from our built seed hash and then rehash those taken seed bytes using a KDF (key stretching) such that it would slow down anyone trying to rebuild private keys from common seeds.
             SecureRandom seedByteTakeDetermine = SecureRandom.GetInstance("SHA256PRNG");
+
             try
             {
-                seedByteTakeDetermine.SetSeed((DateTime.Now.Ticks + System.Environment.ProcessorCount) - System.Environment.TickCount);
+                seedByteTakeDetermine.SetSeed((DateTime.Now.Ticks - System.Environment.TickCount) * System.Environment.ProcessorCount);
                 seedByteTakeDetermine.SetSeed(seedByteTakeDetermine.GenerateSeed(1+seedByteTakeDetermine.Next(32)));
             }
             catch
             {
-                //if the number is too big or causes an error or whatever we will failover to this
-                seedByteTakeDetermine.SetSeed(DateTime.Now.Ticks);
+                //if the number is too big or causes an error or whatever we will failover to this, as it's not our main source of random bytes and not used in the KDF stretching it's ok.
+                seedByteTakeDetermine.SetSeed(DateTime.Now.Ticks - System.Environment.TickCount);
                 seedByteTakeDetermine.SetSeed(seedByteTakeDetermine.GenerateSeed(1 + seedByteTakeDetermine.Next(32)));
             }
 
             //hardened seed
-            byte[] toHashForSeed = { BitConverter.GetBytes(System.Environment.ProcessorCount - seedByteTakeDetermine.Next(0, (System.Environment.ProcessorCount-1)))[0] };
+            byte[] toHashForSeed;
+
+            try
+            {
+                toHashForSeed = BitConverter.GetBytes(((System.Environment.ProcessorCount - seedByteTakeDetermine.Next(0, System.Environment.ProcessorCount)) * System.Environment.TickCount));
+            }
+            catch
+            {
+                //if the number was too large or something we failover to this
+                toHashForSeed = BitConverter.GetBytes(((System.Environment.ProcessorCount - seedByteTakeDetermine.Next(0, System.Environment.ProcessorCount)) + System.Environment.TickCount));
+            }
+
+            toHashForSeed = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length);
             toHashForSeed = MergeByteArrays(toHashForSeed, BitConverter.GetBytes(DateTime.UtcNow.Ticks));
             toHashForSeed = MergeByteArrays(toHashForSeed, BitConverter.GetBytes(System.Environment.TickCount));
             toHashForSeed = MergeByteArrays(toHashForSeed, new ThreadedSeedGenerator().GenerateSeed(24, true));
-
+            toHashForSeed = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length);
             //we grab a random amount of bytes between 16 and 64 to rehash and make a new set of 64 bytes
             toHashForSeed = Sha512Digest(toHashForSeed,0,toHashForSeed.Length).Take(seedByteTakeDetermine.Next(16,64)).ToArray();
             //now we bring it back up to 64 bytes again
             toHashForSeed = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length);
 
-            //now we can cause computational expense to build our seed, nothing too big in case we want to get random bytes in bulk i.e create a ton of private keys, just a little bit and by using Sha512 we hurt GPUs that bit extra :)
-            byte[] tempHash;
-
             //by making the iterations also random we are again making it hard to determin our seed by brute force
-            int iterations = seedStretching-(seedByteTakeDetermine.Next(0,(seedStretching/9)));
+            int iterations = seedStretchingIterations-(seedByteTakeDetermine.Next(0,(seedStretchingIterations/9)));
 
-            for(int i=0;i<iterations;i++)
-            {
-                 tempHash = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length);
+            //here we use key stretching techniques to make it harder to replay the random seed values by forcing computational time up            
+            byte[] seedMaterial = Rfc2898_pbkdf2_hmacsha512.PBKDF2(toHashForSeed, seedByteTakeDetermine.GenerateSeed(64),iterations);
 
-                for (Int32 j = 0; j < tempHash.Length; j++)
-                {
-                    //xor each byte of each hash pass with result to alleviate address space reduction concerns mentioned in rfc2898
-                    toHashForSeed[j] ^= tempHash[j];
-                }
-            }            
-            
-            byte[] seedMaterial = toHashForSeed;
             //build a SecureRandom object that uses Sha512 to provide randomness and we will give it our created above hardened seed
             SecureRandom secRand = new SecureRandom(new Org.BouncyCastle.Crypto.Prng.DigestRandomGenerator(new Sha512Digest()));
             //set the seed that we created just above
             secRand.SetSeed(seedMaterial);
+            //generate more seed materisal
             secRand.SetSeed(secRand.GenerateSeed(1 + secRand.Next(64)));
+            //add our prefab seed again onto the previous material just to be sure the above statement is adding and not clobbering seed material
+            secRand.SetSeed(seedMaterial);
+
             //here we derive our random bytes
             secRand.NextBytes(output,0,size);
             return output;

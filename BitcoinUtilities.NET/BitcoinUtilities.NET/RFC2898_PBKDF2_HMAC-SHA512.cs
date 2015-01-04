@@ -2,9 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Bitcoin.BitcoinUtilities;
 
-namespace Bitcoin.BIP39
+namespace Bitcoin.BitcoinUtilities
 {
     /// <summary>
     /// Implementation of the Rfc2898 PBKDF2 specification located here http://www.ietf.org/rfc/rfc2898.txt using HMACSHA512 but modified as opposed to PWDTKto match the BIP39 test vectors
@@ -44,11 +43,11 @@ namespace Bitcoin.BIP39
         /// <param name="password">The Password to be hashed and is also the HMAC key</param>
         /// <param name="salt">Salt to be concatenated with the password</param>
         /// <param name="iterations">Number of iterations to perform HMACSHA Hashing for PBKDF2</param>
-        public Rfc2898_pbkdf2_hmacsha512(Byte[] password, Byte[] salt)
+        public Rfc2898_pbkdf2_hmacsha512(Byte[] password, Byte[] salt, int iterations = CMinIterations)
         {            
             P = password;
             S = salt;
-            c = CMinIterations;            
+            c = iterations;            
         }
 
         #endregion
@@ -87,10 +86,10 @@ namespace Bitcoin.BIP39
         /// <param name="c">Iterations to perform the underlying PRF over</param>
         /// <param name="dkLen">Length of Bytes to return, an AES 256 key wold require 32 Bytes</param>
         /// <returns>Derived Key in Byte Array form ready for use by chosen encryption function</returns>
-        public static Byte[] PBKDF2(Byte[] P, Byte[] S)
+        public static Byte[] PBKDF2(Byte[] P, Byte[] S, int c = CMinIterations, int dkLen = hLen)
         {
-            Rfc2898_pbkdf2_hmacsha512 rfcObj = new Rfc2898_pbkdf2_hmacsha512(P, S);
-            return rfcObj.GetDerivedKeyBytes_PBKDF2_HMACSHA512(hLen);
+            Rfc2898_pbkdf2_hmacsha512 rfcObj = new Rfc2898_pbkdf2_hmacsha512(P, S, c);
+            return rfcObj.GetDerivedKeyBytes_PBKDF2_HMACSHA512(dkLen);
         }        
 
         #endregion
