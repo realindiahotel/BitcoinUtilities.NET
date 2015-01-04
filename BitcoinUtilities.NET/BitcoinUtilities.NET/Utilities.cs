@@ -179,7 +179,9 @@ namespace Bitcoin.BitcoinUtilities
 
             toHashForSeed = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length);
             toHashForSeed = MergeByteArrays(toHashForSeed, BitConverter.GetBytes(DateTime.UtcNow.Ticks));
+            toHashForSeed = MergeByteArrays(toHashForSeed, BitConverter.GetBytes(DateTime.Now.Ticks));
             toHashForSeed = MergeByteArrays(toHashForSeed, BitConverter.GetBytes(System.Environment.TickCount));
+            toHashForSeed = MergeByteArrays(toHashForSeed, BitConverter.GetBytes(System.Environment.ProcessorCount));
             toHashForSeed = MergeByteArrays(toHashForSeed, new ThreadedSeedGenerator().GenerateSeed(24, true));
             toHashForSeed = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length);
             //we grab a random amount of bytes between 16 and 64 to rehash and make a new set of 64 bytes
