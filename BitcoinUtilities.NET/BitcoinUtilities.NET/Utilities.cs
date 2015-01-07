@@ -18,23 +18,11 @@ namespace Bitcoin.BitcoinUtilities
     /// <summary>
     /// A Library that provides common functionality between my other Bitcoin Modules
     /// Made by thashiznets@yahoo.com.au
-    /// v1.0.0.1
+    /// v1.0.0.2
     /// Bitcoin:1ETQjMkR1NNh4jwLuN5LxY7bMsHC9PUPSV
     /// </summary>  
     public static class Utilities
-    {
-        /// <summary>
-        /// We can use this to Normalise Strings yippie
-        /// </summary>
-        /// <param name="NormForm"></param>
-        /// <param name="lpSrcString"></param>
-        /// <param name="cwSrcLength"></param>
-        /// <param name="lpDstString"></param>
-        /// <param name="cwDstLength"></param>
-        /// <returns></returns>
-        [DllImport("Normaliz.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
-        public static extern int NormalizeString(Globals.NORM_FORM NormForm,string lpSrcString,int cwSrcLength,StringBuilder lpDstString,int cwDstLength);
-        
+    {        
         /// <summary>
         /// Calculates RIPEMD160(SHA256(input)). This is used in Address calculations.
         /// </summary>
@@ -284,5 +272,43 @@ namespace Bitcoin.BitcoinUtilities
         {
             return new BigInteger(1,bytes);
         }
+
+        /// <summary>
+        /// Normalises a string with NKFD normal form
+        /// </summary>
+        /// <param name="toNormalise">String to be normalised</param>
+        /// <returns>Normalised string</returns>
+        public static String NormaliseStringNfkd(String toNormalise)
+        {
+            int bufferSize = NormalizeString(Globals.NORM_FORM.NormalizationKD, toNormalise, -1, null, 0);
+
+            StringBuilder buffer = new StringBuilder(bufferSize);
+            
+            // Normalize.
+            NormalizeString(Globals.NORM_FORM.NormalizationKD, toNormalise, -1, buffer, buffer.Capacity);
+
+            // Check for and act on errors if you want.
+            int error = Marshal.GetLastWin32Error();
+
+            if(error !=0)
+            {
+                throw (new Exception("A Win32 error with code " + error + " has occured in unmanaged NormalizeString"));
+            }
+            char[] trim = {'\0'};
+
+            return buffer.ToString().TrimEnd(trim);
+        }
+
+        /// <summary>
+        /// Will be used internally for NFKD Normalisation
+        /// </summary>
+        /// <param name="NormForm">Normal Form to use</param>
+        /// <param name="lpSrcString">Raw non-normalised source string</param>
+        /// <param name="cwSrcLength">Length of source string</param>
+        /// <param name="lpDstString">Normalised destination string</param>
+        /// <param name="cwDstLength">length of destination string</param>
+        /// <returns>length of result string</returns>
+        [DllImport("Normaliz.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+        private static extern int NormalizeString(Globals.NORM_FORM NormForm, string lpSrcString, int cwSrcLength, StringBuilder lpDstString, int cwDstLength);
     }
 }
