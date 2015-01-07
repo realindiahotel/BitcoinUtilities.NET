@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
 using System.Text;
+using System.Runtime.InteropServices;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Macs;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -11,6 +12,7 @@ using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Crypto.Prng;
 
+
 namespace Bitcoin.BitcoinUtilities
 {
     /// <summary>
@@ -18,9 +20,21 @@ namespace Bitcoin.BitcoinUtilities
     /// Made by thashiznets@yahoo.com.au
     /// v1.0.0.1
     /// Bitcoin:1ETQjMkR1NNh4jwLuN5LxY7bMsHC9PUPSV
-    /// </summary>
+    /// </summary>  
     public static class Utilities
     {
+        /// <summary>
+        /// We can use this to Normalise Strings yippie
+        /// </summary>
+        /// <param name="NormForm"></param>
+        /// <param name="lpSrcString"></param>
+        /// <param name="cwSrcLength"></param>
+        /// <param name="lpDstString"></param>
+        /// <param name="cwDstLength"></param>
+        /// <returns></returns>
+        [DllImport("Normaliz.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+        public static extern int NormalizeString(Globals.NORM_FORM NormForm,string lpSrcString,int cwSrcLength,StringBuilder lpDstString,int cwDstLength);
+        
         /// <summary>
         /// Calculates RIPEMD160(SHA256(input)). This is used in Address calculations.
         /// </summary>
