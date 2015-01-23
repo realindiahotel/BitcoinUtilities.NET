@@ -140,9 +140,9 @@ namespace Bitcoin.BitcoinUtilities
         /// Safely get Crypto Random byte array at the size you desire.
         /// </summary>
         /// <param name="size">Size of the crypto random byte array to build</param>
-        /// <param name="seedStretchingIterations">Optional parameter to specify how many SHA512 passes occur over our seed before we use it. Higher value is greater security but uses more computational power. If random byte generation is taking too long try specifying values lower than the default of 30000. You can set 0 to turn off stretching</param>
+        /// <param name="seedStretchingIterations">Optional parameter to specify how many SHA512 passes occur over our seed before we use it. Higher value is greater security but uses more computational power. If random byte generation is taking too long try specifying values lower than the default of 5000. You can set 0 to turn off stretching</param>
         /// <returns>A byte array of completely random bytes</returns>
-        public static byte[] GetRandomBytes(int size, int seedStretchingIterations=2048)
+        public static byte[] GetRandomBytes(int size, int seedStretchingIterations=5000)
         {
             //varies from system to system, a tiny amount of entropy, tiny
             int processorCount = System.Environment.ProcessorCount;
@@ -172,6 +172,8 @@ namespace Bitcoin.BitcoinUtilities
 
             //we create a SecureRandom based off SHA256 just to get a random int which will be used to determine what bytes to "take" from our built seed hash and then rehash those taken seed bytes using a KDF (key stretching) such that it would slow down anyone trying to rebuild private keys from common seeds.
             SecureRandom seedByteTakeDetermine = SecureRandom.GetInstance("SHA256PRNG");
+
+            guidBytes = HmacSha512Digest(guidBytes,0,guidBytes.Length,MergeByteArrays(threadedSeedBytes,UTF8Encoding.UTF8.GetBytes(Convert.ToString(System.Environment.TickCount))));
 
             try
             {
@@ -231,11 +233,8 @@ namespace Bitcoin.BitcoinUtilities
             toHashForSeed = MergeByteArrays(toHashForSeed, threadedSeedBytes);
             toHashForSeed = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length);
 
-            //we grab a random amount of bytes between 32 and 64 to rehash and make a new set of 64 bytes
-            toHashForSeed = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length).Take(seedByteTakeDetermine.Next(32, 64)).ToArray();
-
-            //now we bring it back up to 64 bytes again
-            toHashForSeed = Sha512Digest(toHashForSeed, 0, toHashForSeed.Length);
+            //we grab a random amount of bytes between 24 and 64 to rehash  make a new set of 64 bytes, using guidBytes as hmackey
+            toHashForSeed = Sha512Digest(HmacSha512Digest(toHashForSeed,0,seedByteTakeDetermine.Next(24, 64),guidBytes),0,64);
 
             seedByteTakeDetermine.SetSeed(currentThreadId + (DateTime.Now.Ticks - System.Environment.TickCount));
             
@@ -325,7 +324,6 @@ namespace Bitcoin.BitcoinUtilities
 
             //I love lamp
             return output;
-
         }
 
         /// <summary>
