@@ -74,39 +74,6 @@ namespace Bitcoin.BitcoinUtilities
         }
 
         /// <summary>
-        /// Construct an ECKey from an ASN.1 encoded private key. These are produced by OpenSSL and stored by the BitCoin
-        /// reference implementation in its wallet.
-        /// </summary>
-        /// <param name="asn1PrivKey">asn1 encoded key bytes</param>
-        /// <param name="compressedPublicKey">optional is this a compressed public key, false if not specified</param>
-        /// <returns></returns>
-        public static EcKeyPair FromAsn1(byte[] asn1PrivKey, bool compressedPublicKey=false)
-        {
-            return new EcKeyPair(pExtractPrivateKeyFromAsn1(asn1PrivKey),compressedPublicKey);
-        }
-           
-        /// <summary>
-        /// Output this ECKey as an ASN.1 encoded private key, as understood by OpenSSL or used by the BitCoin reference
-        /// implementation in its wallet storage format.
-        /// </summary>
-        public byte[] ToAsn1()
-        {
-            using (var baos = new MemoryStream(400))
-            {
-                using (var encoder = new Asn1OutputStream(baos))
-                {
-                    var seq = new DerSequenceGenerator(encoder);
-                    seq.AddObject(new DerInteger(1)); // version
-                    seq.AddObject(new DerOctetString(_priv.ToByteArray()));
-                    seq.AddObject(new DerTaggedObject(0, SecNamedCurves.GetByName("secp256k1").ToAsn1Object()));
-                    seq.AddObject(new DerTaggedObject(1, new DerBitString(PublicKey)));
-                    seq.Close();
-                }
-                return baos.ToArray();
-            }
-        }
-
-        /// <summary>
         /// Creates an ECKey given only the private key in a universlly friendly byte array form. This works because
         /// EC public keys are derivable from their private keys by doing a multiply with the generator value.
         /// </summary>
@@ -246,29 +213,6 @@ namespace Bitcoin.BitcoinUtilities
         public bool Verify(byte[] data, byte[] signature)
         {
             return Verify(data, signature, _pub);
-        }
-
-        private static byte[] pExtractPrivateKeyFromAsn1(byte[] asn1PrivKey)
-        {
-            // To understand this code, see the definition of the ASN.1 format for EC private keys in the OpenSSL source
-            // code in ec_asn1.c:
-            //
-            // ASN1_SEQUENCE(EC_PRIVATEKEY) = {
-            //   ASN1_SIMPLE(EC_PRIVATEKEY, version, LONG),
-            //   ASN1_SIMPLE(EC_PRIVATEKEY, privateKey, ASN1_OCTET_STRING),
-            //   ASN1_EXP_OPT(EC_PRIVATEKEY, parameters, ECPKPARAMETERS, 0),
-            //   ASN1_EXP_OPT(EC_PRIVATEKEY, publicKey, ASN1_BIT_STRING, 1)
-            // } ASN1_SEQUENCE_END(EC_PRIVATEKEY)
-            //
-            DerOctetString key;
-            using (var decoder = new Asn1InputStream(asn1PrivKey))
-            {
-                var seq = (DerSequence) decoder.ReadObject();
-                Debug.Assert(seq.Count == 4, "Input does not appear to be an ASN.1 OpenSSL EC private key");
-                Debug.Assert(((DerInteger) seq[0]).Value.Equals(BigInteger.One), "Input is of wrong version");
-                key = (DerOctetString) seq[1];
-            }
-            return key.GetOctets();
         }
 
         /// <summary>
