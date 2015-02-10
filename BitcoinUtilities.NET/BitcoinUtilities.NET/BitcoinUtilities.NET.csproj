@@ -35,6 +35,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Base58.cs" />
+    <Compile Include="VarInt.cs" />
     <Compile Include="EcKeyPair.cs" />
     <Compile Include="Globals.cs" />
     <Compile Include="RFC2898_PBKDF2_HMAC-SHA512.cs" />

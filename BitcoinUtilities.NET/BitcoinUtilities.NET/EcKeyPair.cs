@@ -98,7 +98,7 @@ namespace Bitcoin.BitcoinUtilities
         /// <summary>
         /// Derive the public key by doing a point multiply of G * priv.
         /// </summary>
-        private static byte[] pPublicKeyFromPrivate(BigInteger privKey, bool compressedPublicKey)
+        private static byte[] pPublicKeyFromPrivate(Org.BouncyCastle.Math.BigInteger privKey, bool compressedPublicKey)
         {
             if (!compressedPublicKey)
             {

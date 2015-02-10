@@ -9,8 +9,9 @@ using Org.BouncyCastle.Crypto.Macs;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Crypto.Prng;
+using Org.BouncyCastle.Math;
+using System.IO;
 using System.Threading.Tasks;
 
 
@@ -333,15 +334,49 @@ namespace Bitcoin.BitcoinUtilities
         /// <returns>A Positive BigInteger</returns>
         public static BigInteger NewPositiveBigInteger(byte[] bytes)
         {
-            return new BigInteger(1,bytes);
+            return new BigInteger(1, bytes);
         }
 
-        /// <summary>
-        /// Normalises a string with NKFD normal form
-        /// </summary>
-        /// <param name="toNormalise">String to be normalised</param>
-        /// <returns>Normalised string</returns>
-        public static String NormaliseStringNfkd(String toNormalise)
+		/// <summary>
+		/// Convert a .NET DateTime into a Unix Epoch represented time
+		/// </summary>
+		/// <param name="time">DateTime to convert</param>
+		/// <returns>Number of ticks since the Unix Epoch</returns>
+		public static ulong ToUnixTime(DateTime time)
+		{
+			return (ulong)(time.ToUniversalTime() - Globals.UnixEpoch).TotalSeconds;
+		}
+		
+		/// <summary>
+		/// Checks to see if supplied time is within the 70 minute tollerance for network error
+		/// </summary>
+		/// <param name="peerUnixTime">Unix time to check within threshold</param>
+		/// <param name="timeOffset">Offset which is difference between peerUnixTime and local UTC time</param>
+		/// <returns>Compliance within threshold</returns>
+		public static bool UnixTimeWithin70MinuteThreshold(ulong peerUnixTime, out long timeOffset)
+		{
+			int maxOffset = 42000;
+			int minOffset = -42000;
+
+			ulong currentTime = ToUnixTime(DateTime.UtcNow);
+
+			timeOffset = (Convert.ToInt64(currentTime)) - (Convert.ToInt64(peerUnixTime));
+
+			if (timeOffset > maxOffset || timeOffset < minOffset)
+			{
+				return false;
+			}
+
+			return true;
+        }
+
+
+		/// <summary>
+		/// Normalises a string with NKFD normal form
+		/// </summary>
+		/// <param name="toNormalise">String to be normalised</param>
+		/// <returns>Normalised string</returns>
+		public static String NormaliseStringNfkd(String toNormalise)
         {
             int bufferSize = NormalizeString(Globals.NORM_FORM.NormalizationKD, toNormalise, -1, null, 0);
 
@@ -362,16 +397,99 @@ namespace Bitcoin.BitcoinUtilities
             return buffer.ToString().TrimEnd(trim);
         }
 
-        /// <summary>
-        /// Will be used internally for NFKD Normalisation
-        /// </summary>
-        /// <param name="NormForm">Normal Form to use</param>
-        /// <param name="lpSrcString">Raw non-normalised source string</param>
-        /// <param name="cwSrcLength">Length of source string</param>
-        /// <param name="lpDstString">Normalised destination string</param>
-        /// <param name="cwDstLength">length of destination string</param>
-        /// <returns>length of result string</returns>
-        [DllImport("Normaliz.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+		/// <summary>
+		/// Uint32 to Byte Array in Little Endian
+		/// </summary>
+		/// <param name="val">the uint32 to convert</param>
+		/// <param name="@out">The byte array representation of uint32 in little endian</param>
+		/// <param name="offset">Offset to start placing the bytes in the byte array</param>
+		public static void Uint32ToByteArrayLe(uint val, byte[] @out, int offset)
+		{
+			@out[offset + 0] = (byte)(val >> 0);
+			@out[offset + 1] = (byte)(val >> 8);
+			@out[offset + 2] = (byte)(val >> 16);
+			@out[offset + 3] = (byte)(val >> 24);
+		}
+
+		/// <summary>
+		/// Converts a Uint32 into a Stream of Bytes in Little Endian
+		/// </summary>
+		/// <param name="val">Uint32 to make stream</param>
+		/// <param name="stream">Uint32 outout as byte stream little endian</param>
+		public static void Uint32ToByteStreamLe(uint val, Stream stream)
+		{
+			stream.Write((new byte[] { (byte)(val >> 0) }),0, (new byte[] { (byte)(val >> 0) }).Length);
+			stream.Write((new byte[] { (byte)(val >> 8) }),0, (new byte[] { (byte)(val >> 8) }).Length);
+			stream.Write((new byte[] { (byte)(val >> 16) }), 0, (new byte[] { (byte)(val >> 16) }).Length);
+			stream.Write((new byte[] { (byte)(val >> 24) }), 0, (new byte[] { (byte)(val >> 24) }).Length);
+		}
+
+		/// <summary>
+		/// Converts a Uint32 into a Byte Array in Big Endian
+		/// </summary>
+		/// <param name="val">Uint32 to convert</param>
+		/// <param name="@out">Byte array that will contain the result of the conversion</param>
+		/// <param name="offset">Offset in byte array to start placing output</param>
+		public static void Uint32ToByteArrayBe(uint val, byte[] @out, int offset)
+		{
+			@out[offset + 0] = (byte)(val >> 24);
+			@out[offset + 1] = (byte)(val >> 16);
+			@out[offset + 2] = (byte)(val >> 8);
+			@out[offset + 3] = (byte)(val >> 0);
+		}
+
+		/// <summary>
+		/// Convert a ulong to byte stream little endian
+		/// </summary>
+		/// <param name="val">ulong for conversion</param>
+		/// <param name="stream">byte stream of ulong in little endian order</param>
+		public static void Uint64ToByteStreamLe(ulong val, Stream stream)
+		{
+			var bytes = BitConverter.GetBytes(val);
+			if (!BitConverter.IsLittleEndian)
+			{
+				Array.Reverse(bytes);
+			}
+
+			stream.Write(bytes, 0, bytes.Length);
+		}
+		/// <summary>
+		/// Bytes to Uint32
+		/// </summary>
+		/// <param name="bytes">Bytes to get Uint32 from</param>
+		/// <param name="offset">Offset to start getting the UInt32 from</param>
+		/// <returns>Uint32</returns>
+		public static uint ReadUint32(byte[] bytes, int offset)
+		{
+			return (((uint)bytes[offset + 0]) << 0) |
+				   (((uint)bytes[offset + 1]) << 8) |
+				   (((uint)bytes[offset + 2]) << 16) |
+				   (((uint)bytes[offset + 3]) << 24);
+		}
+
+		/// <summary>
+		/// Reverse the order of given Byte Array
+		/// </summary>
+		/// <param name="bytes">Byte array to reverse</param>
+		/// <returns>reverse copy of supplied Byte array</returns>
+		public static byte[] ReverseBytes(byte[] bytes)
+		{
+			var buf = new byte[bytes.Length];
+			for (var i = 0; i < bytes.Length; i++)
+				buf[i] = bytes[bytes.Length - 1 - i];
+			return buf;
+		}
+
+		/// <summary>
+		/// Will be used internally for NFKD Normalisation
+		/// </summary>
+		/// <param name="NormForm">Normal Form to use</param>
+		/// <param name="lpSrcString">Raw non-normalised source string</param>
+		/// <param name="cwSrcLength">Length of source string</param>
+		/// <param name="lpDstString">Normalised destination string</param>
+		/// <param name="cwDstLength">length of destination string</param>
+		/// <returns>length of result string</returns>
+		[DllImport("Normaliz.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
         private static extern int NormalizeString(Globals.NORM_FORM NormForm, string lpSrcString, int cwSrcLength, StringBuilder lpDstString, int cwDstLength);
     }
 }
