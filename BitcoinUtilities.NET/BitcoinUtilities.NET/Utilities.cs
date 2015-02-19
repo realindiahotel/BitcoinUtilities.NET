@@ -112,9 +112,16 @@ namespace Bitcoin.BitcoinUtilities
         /// </summary>
         /// <param name="bytes">The bytes to encode to hex</param>
         /// <returns>The hex encoded representation of the bytes</returns>
-        public static string BytesToHexString(byte[] bytes)
+        public static string BytesToHexString(byte[] bytes, bool upperCase=false)
         {
-            return string.Concat(bytes.Select(byteb => byteb.ToString("x2")).ToArray());
+			if (upperCase)
+			{
+				return string.Concat(bytes.Select(byteb => byteb.ToString("X2")).ToArray());
+			}
+			else
+			{
+				return string.Concat(bytes.Select(byteb => byteb.ToString("x2")).ToArray());
+			}
         }
 
         /// <summary>
