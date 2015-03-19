@@ -97,12 +97,55 @@ namespace Bitcoin.BitcoinUtilities
             return secondHash;
         }
 
-        /// <summary>
-        /// Converts a hex based string into its bytes contained in a byte array
-        /// </summary>
-        /// <param name="hex">The hex encoded string</param>
-        /// <returns>the bytes derived from the hex encoded string</returns>
-        public static byte[] HexStringToBytes(string hexString)
+		/// <summary>
+		/// Calculates SHA256(SHA256(byte range 1 + byte range 2)).
+		/// </summary>
+		public static byte[] DoubleDigestTwoBuffers(byte[] input1, int offset1, int length1, byte[] input2, int offset2, int length2)
+		{
+			var algorithm = new Sha256Digest();
+			var buffer = new byte[length1 + length2];
+			Array.Copy(input1, offset1, buffer, 0, length1);
+			Array.Copy(input2, offset2, buffer, length1, length2);
+			Byte[] first = new Byte[algorithm.GetDigestSize()];
+			algorithm.DoFinal(first, 0);
+			algorithm.BlockUpdate(first, 0, first.Length);
+			Byte[] output = new Byte[algorithm.GetDigestSize()];
+			algorithm.DoFinal(output, 0);
+			return output;
+		}
+
+		// The representation of nBits uses another home-brew encoding, as a way to represent a large
+		// hash value in only 32 bits.
+		public static BigInteger DecodeCompactBits(long compact)
+		{
+			var size = (byte)(compact >> 24);
+			var bytes = new byte[4 + size];
+			bytes[3] = size;
+			if (size >= 1) bytes[4] = (byte)(compact >> 16);
+			if (size >= 2) bytes[5] = (byte)(compact >> 8);
+			if (size >= 3) bytes[6] = (byte)(compact >> 0);
+			return DecodeMpi(bytes);
+		}
+
+		/// <summary>
+		/// MPI encoded numbers are produced by the OpenSSL BN_bn2mpi function. They consist of
+		/// a 4 byte big endian length field, followed by the stated number of bytes representing
+		/// the number in big endian format.
+		/// </summary>
+		private static BigInteger DecodeMpi(byte[] mpi)
+		{
+			var length = ReadUint32Be(mpi, 0);
+			var buf = new byte[length];
+			Array.Copy(mpi, 4, buf, 0, (int)length);
+			return new BigInteger(1, buf);
+		}
+
+		/// <summary>
+		/// Converts a hex based string into its bytes contained in a byte array
+		/// </summary>
+		/// <param name="hex">The hex encoded string</param>
+		/// <returns>the bytes derived from the hex encoded string</returns>
+		public static byte[] HexStringToBytes(string hexString)
         {
             return Enumerable.Range(0, hexString.Length).Where(x => x % 2 == 0).Select(x => Convert.ToByte(hexString.Substring(x, 2), 16)).ToArray();
         }
@@ -472,6 +515,20 @@ namespace Bitcoin.BitcoinUtilities
 				   (((uint)bytes[offset + 1]) << 8) |
 				   (((uint)bytes[offset + 2]) << 16) |
 				   (((uint)bytes[offset + 3]) << 24);
+		}
+
+		/// <summary>
+		/// Bytes to Uint32 in BigEndian format
+		/// </summary>
+		/// <param name="bytes">Bytes to get Uint32 from</param>
+		/// <param name="offset">Offset to start getting the UInt32 from</param>
+		/// <returns>Uint32</returns>
+		public static uint ReadUint32Be(byte[] bytes, int offset)
+		{
+			return (((uint)bytes[offset + 0]) << 24) |
+				   (((uint)bytes[offset + 1]) << 16) |
+				   (((uint)bytes[offset + 2]) << 8) |
+				   (((uint)bytes[offset + 3]) << 0);
 		}
 
 		/// <summary>
